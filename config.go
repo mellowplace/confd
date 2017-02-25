@@ -51,31 +51,37 @@ var (
 	userID            string
 )
 
-// A Config structure is used to configure confd.
-type Config struct {
-	AuthToken    string   `toml:"auth_token"`
-	AuthType     string   `toml:"auth_type"`
-	Backend      string   `toml:"backend"`
-	BasicAuth    bool     `toml:"basic_auth"`
-	BackendNodes []string `toml:"nodes"`
+// Backend defines a backend for confd
+type Backend struct {
+  ID           string   `toml:"id"`
+  Type         string   `toml:"type"`
+	Prefix       string   `toml:"prefix"`
 	ClientCaKeys string   `toml:"client_cakeys"`
 	ClientCert   string   `toml:"client_cert"`
 	ClientKey    string   `toml:"client_key"`
-	ConfDir      string   `toml:"confdir"`
-	Interval     int      `toml:"interval"`
-	Noop         bool     `toml:"noop"`
-	Password     string   `toml:"password"`
-	Prefix       string   `toml:"prefix"`
+	BasicAuth    bool     `toml:"basic_auth"`
+	BackendNodes []string `toml:"nodes"`
+	AuthToken    string   `toml:"auth_token"`
+	AuthType     string   `toml:"auth_type"`
 	SRVDomain    string   `toml:"srv_domain"`
 	SRVRecord    string   `toml:"srv_record"`
 	Scheme       string   `toml:"scheme"`
-	SyncOnly     bool     `toml:"sync-only"`
 	Table        string   `toml:"table"`
 	Username     string   `toml:"username"`
-	LogLevel     string   `toml:"log-level"`
-	Watch        bool     `toml:"watch"`
+	Password     string   `toml:"password"`
 	AppID        string   `toml:"app_id"`
 	UserID       string   `toml:"user_id"`
+}
+
+// A Config structure is used to configure confd.
+type Config struct {
+	ConfDir      string    `toml:"confdir"`
+	Noop         bool      `toml:"noop"`
+	LogLevel     string    `toml:"log-level"`
+	SyncOnly     bool      `toml:"sync-only"`
+	Backend      []Backend `toml:"backend"`
+	Watch        bool      `toml:"watch"`
+	Interval     int       `toml:"interval"`
 }
 
 func init() {
@@ -121,11 +127,16 @@ func initConfig() error {
 	}
 	// Set defaults.
 	config = Config{
-		Backend:  "etcd",
+		Backend: []Backend{
+			Backend{
+				ID: "default",
+				Type: "etcd",
+				Prefix:   "",
+				Scheme:   "http",
+			},
+		},
 		ConfDir:  "/etc/confd",
 		Interval: 600,
-		Prefix:   "",
-		Scheme:   "http",
 	}
 	// Update config from the TOML configuration file.
 	if configFile == "" {
@@ -152,40 +163,41 @@ func initConfig() error {
 		log.SetLevel(config.LogLevel)
 	}
 
-	if config.SRVDomain != "" && config.SRVRecord == "" {
-		config.SRVRecord = fmt.Sprintf("_%s._tcp.%s.", config.Backend, config.SRVDomain)
+	if config.Backend[0].SRVDomain != "" && config.Backend[0].SRVRecord == "" {
+		config.Backend[0].SRVRecord = fmt.Sprintf("_%s._tcp.%s.",
+			config.Backend[0].Type, config.Backend[0].SRVDomain)
 	}
 
 	// Update BackendNodes from SRV records.
-	if config.Backend != "env" && config.SRVRecord != "" {
-		log.Info("SRV record set to " + config.SRVRecord)
-		srvNodes, err := getBackendNodesFromSRV(config.SRVRecord, config.Scheme)
+	if config.Backend[0].Type != "env" && config.Backend[0].SRVRecord != "" {
+		log.Info("SRV record set to " + config.Backend[0].SRVRecord)
+		srvNodes, err := getBackendNodesFromSRV(config.Backend[0].SRVRecord, config.Backend[0].Scheme)
 		if err != nil {
 			return errors.New("Cannot get nodes from SRV records " + err.Error())
 		}
-		config.BackendNodes = srvNodes
+		config.Backend[0].BackendNodes = srvNodes
 	}
-	if len(config.BackendNodes) == 0 {
-		switch config.Backend {
+	if len(config.Backend[0].BackendNodes) == 0 {
+		switch config.Backend[0].Type {
 		case "consul":
-			config.BackendNodes = []string{"127.0.0.1:8500"}
+			config.Backend[0].BackendNodes = []string{"127.0.0.1:8500"}
 		case "etcd":
 			peerstr := os.Getenv("ETCDCTL_PEERS")
 			if len(peerstr) > 0 {
-				config.BackendNodes = strings.Split(peerstr, ",")
+				config.Backend[0].BackendNodes = strings.Split(peerstr, ",")
 			} else {
-				config.BackendNodes = []string{"http://127.0.0.1:4001"}
+				config.Backend[0].BackendNodes = []string{"http://127.0.0.1:4001"}
 			}
 		case "redis":
-			config.BackendNodes = []string{"127.0.0.1:6379"}
+			config.Backend[0].BackendNodes = []string{"127.0.0.1:6379"}
 		case "vault":
-			config.BackendNodes = []string{"http://127.0.0.1:8200"}
+			config.Backend[0].BackendNodes = []string{"http://127.0.0.1:8200"}
 		case "zookeeper":
-			config.BackendNodes = []string{"127.0.0.1:2181"}
+			config.Backend[0].BackendNodes = []string{"127.0.0.1:2181"}
 		}
 	}
 	// Initialize the storage client
-	log.Info("Backend set to " + config.Backend)
+	log.Info("Backend set to " + config.Backend[0].Type)
 
 	if config.Watch {
 		unsupportedBackends := map[string]bool{
@@ -194,31 +206,31 @@ func initConfig() error {
 			"rancher":  true,
 		}
 
-		if unsupportedBackends[config.Backend] {
-			log.Info(fmt.Sprintf("Watch is not supported for backend %s. Exiting...", config.Backend))
+		if unsupportedBackends[config.Backend[0].Type] {
+			log.Info(fmt.Sprintf("Watch is not supported for backend %s. Exiting...", config.Backend[0].Type))
 			os.Exit(1)
 		}
 	}
 
-	if config.Backend == "dynamodb" && config.Table == "" {
+	if config.Backend[0].Type == "dynamodb" && config.Backend[0].Table == "" {
 		return errors.New("No DynamoDB table configured")
 	}
 
 	backendsConfig = backends.Config{
-		AuthToken:    config.AuthToken,
-		AuthType:     config.AuthType,
-		Backend:      config.Backend,
-		BasicAuth:    config.BasicAuth,
-		ClientCaKeys: config.ClientCaKeys,
-		ClientCert:   config.ClientCert,
-		ClientKey:    config.ClientKey,
-		BackendNodes: config.BackendNodes,
-		Password:     config.Password,
-		Scheme:       config.Scheme,
-		Table:        config.Table,
-		Username:     config.Username,
-		AppID:        config.AppID,
-		UserID:       config.UserID,
+		AuthToken:    config.Backend[0].AuthToken,
+		AuthType:     config.Backend[0].AuthType,
+		Backend:      config.Backend[0].Type,
+		BasicAuth:    config.Backend[0].BasicAuth,
+		ClientCaKeys: config.Backend[0].ClientCaKeys,
+		ClientCert:   config.Backend[0].ClientCert,
+		ClientKey:    config.Backend[0].ClientKey,
+		BackendNodes: config.Backend[0].BackendNodes,
+		Password:     config.Backend[0].Password,
+		Scheme:       config.Backend[0].Scheme,
+		Table:        config.Backend[0].Table,
+		Username:     config.Backend[0].Username,
+		AppID:        config.Backend[0].AppID,
+		UserID:       config.Backend[0].UserID,
 	}
 	// Template configuration.
 	templateConfig = template.Config{
@@ -226,7 +238,7 @@ func initConfig() error {
 		ConfigDir:     filepath.Join(config.ConfDir, "conf.d"),
 		KeepStageFile: keepStageFile,
 		Noop:          config.Noop,
-		Prefix:        config.Prefix,
+		Prefix:        config.Backend[0].Prefix,
 		SyncOnly:      config.SyncOnly,
 		TemplateDir:   filepath.Join(config.ConfDir, "templates"),
 	}
@@ -258,67 +270,67 @@ func processFlags() {
 func processEnv() {
 	cakeys := os.Getenv("CONFD_CLIENT_CAKEYS")
 	if len(cakeys) > 0 {
-		config.ClientCaKeys = cakeys
+		config.Backend[0].ClientCaKeys = cakeys
 	}
 
 	cert := os.Getenv("CONFD_CLIENT_CERT")
 	if len(cert) > 0 {
-		config.ClientCert = cert
+		config.Backend[0].ClientCert = cert
 	}
 
 	key := os.Getenv("CONFD_CLIENT_KEY")
 	if len(key) > 0 {
-		config.ClientKey = key
+		config.Backend[0].ClientKey = key
 	}
 }
 
 func setConfigFromFlag(f *flag.Flag) {
 	switch f.Name {
 	case "auth-token":
-		config.AuthToken = authToken
+		config.Backend[0].AuthToken = authToken
 	case "auth-type":
-		config.AuthType = authType
+		config.Backend[0].AuthType = authType
 	case "backend":
-		config.Backend = backend
+		config.Backend[0].Type = backend
 	case "basic-auth":
-		config.BasicAuth = basicAuth
+		config.Backend[0].BasicAuth = basicAuth
 	case "client-cert":
-		config.ClientCert = clientCert
+		config.Backend[0].ClientCert = clientCert
 	case "client-key":
-		config.ClientKey = clientKey
+		config.Backend[0].ClientKey = clientKey
 	case "client-ca-keys":
-		config.ClientCaKeys = clientCaKeys
+		config.Backend[0].ClientCaKeys = clientCaKeys
 	case "confdir":
 		config.ConfDir = confdir
 	case "node":
-		config.BackendNodes = nodes
+		config.Backend[0].BackendNodes = nodes
 	case "interval":
 		config.Interval = interval
 	case "noop":
 		config.Noop = noop
 	case "password":
-		config.Password = password
+		config.Backend[0].Password = password
 	case "prefix":
-		config.Prefix = prefix
+		config.Backend[0].Prefix = prefix
 	case "scheme":
-		config.Scheme = scheme
+		config.Backend[0].Scheme = scheme
 	case "srv-domain":
-		config.SRVDomain = srvDomain
+		config.Backend[0].SRVDomain = srvDomain
 	case "srv-record":
-		config.SRVRecord = srvRecord
+		config.Backend[0].SRVRecord = srvRecord
 	case "sync-only":
 		config.SyncOnly = syncOnly
 	case "table":
-		config.Table = table
+		config.Backend[0].Table = table
 	case "username":
-		config.Username = username
+		config.Backend[0].Username = username
 	case "log-level":
 		config.LogLevel = logLevel
 	case "watch":
 		config.Watch = watch
 	case "app-id":
-		config.AppID = appID
+		config.Backend[0].AppID = appID
 	case "user-id":
-		config.UserID = userID
+		config.Backend[0].UserID = userID
 	}
 }

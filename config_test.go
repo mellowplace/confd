@@ -10,19 +10,25 @@ import (
 func TestInitConfigDefaultConfig(t *testing.T) {
 	log.SetLevel("warn")
 	want := Config{
-		Backend:      "etcd",
-		BackendNodes: []string{"http://127.0.0.1:4001"},
-		ClientCaKeys: "",
-		ClientCert:   "",
-		ClientKey:    "",
+		Backend: []Backend{
+			Backend{
+				ID:           "default",
+				Type:         "etcd",
+				BackendNodes: []string{"http://127.0.0.1:4001"},
+				ClientCaKeys: "",
+				ClientCert:   "",
+				ClientKey:    "",
+				Prefix:       "",
+				SRVDomain:    "",
+				Scheme:       "http",
+				Table:        "",
+			},
+		},
 		ConfDir:      "/etc/confd",
-		Interval:     600,
 		Noop:         false,
-		Prefix:       "",
-		SRVDomain:    "",
-		Scheme:       "http",
-		Table:        "",
+		Interval:     600,
 	}
+
 	if err := initConfig(); err != nil {
 		t.Errorf(err.Error())
 	}

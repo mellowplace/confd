@@ -23,20 +23,25 @@ Optional:
 * `sync-only` (bool) - sync without check_cmd and reload_cmd.
 * `watch` (bool) - Enable watch support.
 
-Example:
+Single backend example:
 
 ```TOML
-backend = "etcd"
-client_cert = "/etc/confd/ssl/client.crt"
-client_key = "/etc/confd/ssl/client.key"
 confdir = "/etc/confd"
 log-level = "debug"
 interval = 600
+noop = false
+
+[[backend]]
+id = "default"
+type = "etcd"
+client_cert = "/etc/confd/ssl/client.crt"
+client_key = "/etc/confd/ssl/client.key"
 nodes = [
   "http://127.0.0.1:4001",
 ]
-noop = false
 prefix = "/production"
 scheme = "https"
 srv_domain = "etcd.example.com"
 ```
+
+*Note* that there must always be at least one backend with the ID of "default"
