@@ -44,4 +44,4 @@ scheme = "https"
 srv_domain = "etcd.example.com"
 ```
 
-*Note* that there must always be at least one backend with the ID of "default"
+*Note* that there must **always** be at least one backend with the ID of "default"

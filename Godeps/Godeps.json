@@ -1,14 +1,15 @@
 {
 	"ImportPath": "github.com/kelseyhightower/confd",
 	"GoVersion": "go1.6",
+	"GodepVersion": "v79",
 	"Packages": [
 		"backends/.."
 	],
 	"Deps": [
 		{
 			"ImportPath": "github.com/BurntSushi/toml",
-			"Comment": "v0.1.0-25-g312db06",
-			"Rev": "312db06c6c6dbfa9899e58564bacfaa584f18ab7"
+			"Comment": "v0.2.0-21-g9906417",
+			"Rev": "99064174e013895bbd9b025c31100bd1d9b590ca"
 		},
 		{
 			"ImportPath": "github.com/Sirupsen/logrus",

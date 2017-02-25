@@ -142,6 +142,7 @@ func initConfig() error {
 	if configFile == "" {
 		log.Debug("Skipping confd config file.")
 	} else {
+
 		log.Debug("Loading " + configFile)
 		configBytes, err := ioutil.ReadFile(configFile)
 		if err != nil {
