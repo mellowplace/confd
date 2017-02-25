@@ -48,7 +48,14 @@ srv_domain = "etcd.example.com"
 
 Multiple backend example:
 
+You must use a toml config file to be able to define multiple backends
+
 ```TOML
+confdir = "/etc/confd"
+log-level = "debug"
+interval = 600
+noop = false
+
 [[backend]]
 id = "default"
 type = "etcd"

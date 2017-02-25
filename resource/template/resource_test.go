@@ -8,6 +8,7 @@ import (
 	"text/template"
 
 	"github.com/kelseyhightower/confd/backends/env"
+	"github.com/kelseyhightower/confd/backends"
 	"github.com/kelseyhightower/confd/log"
 )
 
@@ -87,10 +88,12 @@ func TestProcessTemplateResources(t *testing.T) {
 		t.Errorf(err.Error())
 	}
 	c := Config{
-		ConfDir:     tempConfDir,
-		ConfigDir:   filepath.Join(tempConfDir, "conf.d"),
-		StoreClient: storeClient,
-		TemplateDir: filepath.Join(tempConfDir, "templates"),
+		ConfDir:      tempConfDir,
+		ConfigDir:    filepath.Join(tempConfDir, "conf.d"),
+		StoreClients: []backends.StoreClient {
+			storeClient,
+		},
+		TemplateDir:  filepath.Join(tempConfDir, "templates"),
 	}
 	// Process the test template resource.
 	err = Process(c)

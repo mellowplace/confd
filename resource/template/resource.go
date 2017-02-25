@@ -20,14 +20,14 @@ import (
 )
 
 type Config struct {
-	ConfDir       string
-	ConfigDir     string
-	KeepStageFile bool
-	Noop          bool
-	Prefix        string
-	StoreClient   backends.StoreClient
-	SyncOnly      bool
-	TemplateDir   string
+	ConfDir        string
+	ConfigDir      string
+	KeepStageFile  bool
+	Noop           bool
+	Prefix         string
+	StoreClients   []backends.StoreClient
+	SyncOnly       bool
+	TemplateDir    string
 }
 
 // TemplateResourceConfig holds the parsed template resource.
@@ -37,31 +37,31 @@ type TemplateResourceConfig struct {
 
 // TemplateResource is the representation of a parsed template resource.
 type TemplateResource struct {
-	CheckCmd      string `toml:"check_cmd"`
-	Dest          string
-	FileMode      os.FileMode
-	Gid           int
-	Keys          []string
-	Mode          string
-	Prefix        string
-	ReloadCmd     string `toml:"reload_cmd"`
-	Src           string
-	StageFile     *os.File
-	Uid           int
-	funcMap       map[string]interface{}
-	lastIndex     uint64
-	keepStageFile bool
-	noop          bool
-	store         memkv.Store
-	storeClient   backends.StoreClient
-	syncOnly      bool
+	CheckCmd       string `toml:"check_cmd"`
+	Dest           string
+	FileMode       os.FileMode
+	Gid            int
+	Keys           []string
+	Mode           string
+	Prefix         string
+	ReloadCmd      string `toml:"reload_cmd"`
+	Src            string
+	StageFile      *os.File
+	Uid            int
+	funcMap        map[string]interface{}
+	lastIndex      uint64
+	keepStageFile  bool
+	noop           bool
+	store          memkv.Store
+	storeClients   []backends.StoreClient
+	syncOnly       bool
 }
 
 var ErrEmptySrc = errors.New("empty src template")
 
 // NewTemplateResource creates a TemplateResource.
 func NewTemplateResource(path string, config Config) (*TemplateResource, error) {
-	if config.StoreClient == nil {
+	if config.StoreClients == nil || len(config.StoreClients)==0 {
 		return nil, errors.New("A valid StoreClient is required.")
 	}
 
@@ -78,7 +78,7 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 	tr := tc.TemplateResource
 	tr.keepStageFile = config.KeepStageFile
 	tr.noop = config.Noop
-	tr.storeClient = config.StoreClient
+	tr.storeClients = config.StoreClients
 	tr.funcMap = newFuncMap()
 	tr.store = memkv.New()
 	tr.syncOnly = config.SyncOnly
@@ -108,19 +108,22 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 // setVars sets the Vars for template resource.
 func (t *TemplateResource) setVars() error {
 	var err error
-	log.Debug("Retrieving keys from store")
+	log.Debug("Retrieving keys from backend stores")
 	log.Debug("Key prefix set to " + t.Prefix)
 
-	result, err := t.storeClient.GetValues(appendPrefix(t.Prefix, t.Keys))
-	if err != nil {
-		return err
+  for _, storeClient := range t.storeClients {
+		result, err := storeClient.GetValues(appendPrefix(t.Prefix, t.Keys))
+		if err != nil {
+			return err
+		}
+
+		t.store.Purge()
+
+		for k, v := range result {
+			t.store.Set(filepath.Join("/", strings.TrimPrefix(k, t.Prefix)), v)
+		}
 	}
 
-	t.store.Purge()
-
-	for k, v := range result {
-		t.store.Set(filepath.Join("/", strings.TrimPrefix(k, t.Prefix)), v)
-	}
 	return nil
 }
 

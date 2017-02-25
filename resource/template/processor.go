@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/kelseyhightower/confd/log"
+	"github.com/kelseyhightower/confd/backends"
 )
 
 type Processor interface {
