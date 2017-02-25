@@ -45,3 +45,24 @@ srv_domain = "etcd.example.com"
 ```
 
 *Note* that there must **always** be at least one backend with the ID of "default"
+
+Multiple backend example:
+
+```TOML
+[[backend]]
+id = "default"
+type = "etcd"
+client_cert = "/etc/confd/ssl/client.crt"
+client_key = "/etc/confd/ssl/client.key"
+nodes = [
+  "http://127.0.0.1:4001",
+]
+prefix = "/production"
+scheme = "https"
+srv_domain = "etcd.example.com"
+
+[[backend]]
+id = "env_vars"
+type = "env"
+prefix = "/production"
+```
